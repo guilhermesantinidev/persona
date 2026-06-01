@@ -913,6 +913,18 @@ let activeSessionId = null;
 let isTyping = false;
 let abortController = null;
 
+// ── DEBUG LOGGING ────────────────────────────────────
+const DEBUG = true;
+function log(label, data) {
+  if (!DEBUG) return;
+  console.log(`[${new Date().toLocaleTimeString()}] ${label}:`, data);
+}
+function logError(label, err) {
+  console.error(`[ERROR] ${label}:`, err);
+  if (err?.message) console.error(err.message);
+  if (err?.stack) console.error(err.stack);
+}
+
 // ── INIT ──────────────────────────────────────────────
 function init() {
   loadConfig();
@@ -939,7 +951,10 @@ function loadConfig() {
   try {
     const s = localStorage.getItem(SK.config);
     if (s) config = { ...DEFAULT_CONFIG, ...JSON.parse(s) };
-  } catch(e) {}
+  } catch(e) {
+    logError('loadConfig', e);
+    config = { ...DEFAULT_CONFIG };
+  }
 }
 
 function applyConfig() {
@@ -966,18 +981,26 @@ function applyConfig() {
 }
 
 function saveSettings() {
-  config.assistantName  = document.getElementById('s-name').value.trim()   || config.assistantName;
-  config.avatarInitial  = document.getElementById('s-avatar').value.trim() || config.assistantName[0];
-  config.model          = document.getElementById('s-model').value;
-  config.systemPersona  = document.getElementById('s-persona').value;
-  config.systemUserInfo = document.getElementById('s-user-info').value;
-  config.systemExtra    = document.getElementById('s-extra').value;
-  config.fontSize       = parseFloat(document.getElementById('font-slider').value);
-  localStorage.setItem(SK.config, JSON.stringify(config));
-  applyConfig();
-  applyFont(config.fontSize);
-  closeSettings();
-  toast('Configurações salvas ✓');
+  try {
+    config.assistantName  = document.getElementById('s-name').value.trim()   || config.assistantName;
+    config.avatarInitial  = document.getElementById('s-avatar').value.trim() || config.assistantName[0];
+    config.model          = document.getElementById('s-model').value;
+    config.systemPersona  = document.getElementById('s-persona').value;
+    config.systemUserInfo = document.getElementById('s-user-info').value;
+    config.systemExtra    = document.getElementById('s-extra').value;
+    
+    const fs = parseFloat(document.getElementById('font-slider').value);
+    if (!isNaN(fs) && fs >= 12 && fs <= 20) config.fontSize = fs;
+    
+    localStorage.setItem(SK.config, JSON.stringify(config));
+    applyConfig();
+    applyFont(config.fontSize);
+    closeSettings();
+    toast('Configurações salvas ✓');
+  } catch(e) {
+    logError('saveSettings', e);
+    toast('❌ Erro ao salvar configurações');
+  }
 }
 
 function getSystemPrompt() {
@@ -1051,17 +1074,42 @@ function useQuickPrompt(text) {
 function getApiKey() { return localStorage.getItem(SK.apiKey); }
 
 function saveApiKey() {
-  const input = document.getElementById('api-key-input');
-  const key   = input.value.trim();
-  if (!key || !key.startsWith('gsk_')) {
+  try {
+    const input = document.getElementById('api-key-input');
+    const key   = input.value.trim();
+    const error = document.getElementById('api-error');
+    
+    if (!key) {
+      error.style.display = 'block';
+      error.textContent = 'A chave não pode estar vazia';
+      input.style.borderColor = 'rgba(240,128,128,0.5)';
+      return;
+    }
+    
+    if (!key.startsWith('gsk_')) {
+      error.style.display = 'block';
+      error.textContent = 'Chave deve começar com "gsk_"';
+      input.style.borderColor = 'rgba(240,128,128,0.5)';
+      return;
+    }
+    
+    if (key.length < 20) {
+      error.style.display = 'block';
+      error.textContent = 'Chave muito curta';
+      input.style.borderColor = 'rgba(240,128,128,0.5)';
+      return;
+    }
+    
+    localStorage.setItem(SK.apiKey, key);
+    log('API Key saved successfully', '***');
+    hide('api-modal');
+    restoreOrNewSession();
+    document.getElementById('user-input').focus();
+  } catch(e) {
+    logError('saveApiKey', e);
     document.getElementById('api-error').style.display = 'block';
-    input.style.borderColor = 'rgba(240,128,128,0.5)';
-    return;
+    document.getElementById('api-error').textContent = '❌ Erro ao salvar chave';
   }
-  localStorage.setItem(SK.apiKey, key);
-  hide('api-modal');
-  restoreOrNewSession();
-  document.getElementById('user-input').focus();
 }
 
 function resetApiKey() {
@@ -1074,15 +1122,46 @@ function resetApiKey() {
 
 // ── SESSIONS ─────────────────────────────────────────
 function loadSessions() {
-  try { const r = localStorage.getItem(SK.sessions); if (r) sessions = JSON.parse(r); } catch(e) { sessions = {}; }
+  try {
+    const r = localStorage.getItem(SK.sessions);
+    if (r) sessions = JSON.parse(r);
+  } catch(e) {
+    logError('loadSessions', e);
+    sessions = {};
+  }
 }
-function saveSessions() { try { localStorage.setItem(SK.sessions, JSON.stringify(sessions)); } catch(e) {} }
+function saveSessions() {
+  try {
+    localStorage.setItem(SK.sessions, JSON.stringify(sessions));
+  } catch(e) {
+    logError('saveSessions', e);
+    if (e.name === 'QuotaExceededError') {
+      toast('⚠️ Armazenamento cheio - limpando histórico antigo');
+      const ids = Object.keys(sessions).sort((a,b) => (sessions[a].createdAt||0) - (sessions[b].createdAt||0));
+      if (ids.length > 0) delete sessions[ids[0]];
+      try { localStorage.setItem(SK.sessions, JSON.stringify(sessions)); } catch(e2) { logError('saveSessions retry', e2); }
+    }
+  }
+}
 function getSession(id) { return sessions[id]; }
 
 function createSession() {
-  const id = 'sess_' + Date.now();
-  sessions[id] = { id, title: 'Nova conversa', createdAt: Date.now(), messages: [] };
-  saveSessions(); return id;
+  try {
+    const id = 'sess_' + Date.now();
+    sessions[id] = {
+      id,
+      title: 'Nova conversa',
+      createdAt: Date.now(),
+      messages: []
+    };
+    saveSessions();
+    log('createSession', id);
+    return id;
+  } catch(err) {
+    logError('createSession', err);
+    toast('❌ Erro ao criar conversa');
+    return null;
+  }
 }
 
 function setActiveSession(id) { activeSessionId = id; localStorage.setItem(SK.activeSession, id); }
@@ -1093,28 +1172,61 @@ function restoreOrNewSession() {
 }
 
 function loadSession(id) {
-  if (!sessions[id]) return;
-  setActiveSession(id);
-  renderChat(sessions[id].messages);
-  hideRegenBar();
-  updateTokenBadge();
+  try {
+    if (!id || !sessions[id]) {
+      logError('loadSession', `Invalid session id: ${id}`);
+      return;
+    }
+    
+    setActiveSession(id);
+    renderChat(sessions[id].messages);
+    hideRegenBar();
+    updateTokenBadge();
+    log('loadSession', id);
+  } catch(err) {
+    logError('loadSession', err);
+    toast('❌ Erro ao carregar conversa');
+  }
 }
 
 function renderChat(messages) {
-  const area = document.getElementById('chat-area');
-  area.innerHTML = '';
-  if (!messages.length) { area.appendChild(makeEmptyState()); return; }
-  let lastDate = null;
-  messages.forEach(m => {
-    const d = new Date(m.ts).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
-    if (d !== lastDate) {
-      lastDate = d;
-      const sep = document.createElement('div');
-      sep.className = 'date-sep'; sep.textContent = d; area.appendChild(sep);
+  try {
+    const area = document.getElementById('chat-area');
+    if (!area) {
+      logError('renderChat', 'chat-area not found');
+      return;
     }
-    appendMessageEl(m.role === 'assistant' ? 'ai' : 'user', m.content, m.time, false, m.image || null);
-  });
-  area.scrollTop = area.scrollHeight;
+    
+    area.innerHTML = '';
+    if (!messages || !messages.length) {
+      area.appendChild(makeEmptyState());
+      return;
+    }
+    
+    let lastDate = null;
+    messages.forEach((m, idx) => {
+      try {
+        if (!m || !m.role) return;
+        
+        const d = new Date(m.ts || 0).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+        if (d !== lastDate) {
+          lastDate = d;
+          const sep = document.createElement('div');
+          sep.className = 'date-sep';
+          sep.textContent = d;
+          area.appendChild(sep);
+        }
+        
+        appendMessageEl(m.role === 'assistant' ? 'ai' : 'user', m.content || '', m.time || '', false, m.image || null);
+      } catch(itemErr) {
+        logError(`renderChat item ${idx}`, itemErr);
+      }
+    });
+    
+    area.scrollTop = area.scrollHeight;
+  } catch(err) {
+    logError('renderChat', err);
+  }
 }
 
 function makeEmptyState() {
@@ -1139,12 +1251,31 @@ function newChat() {
 }
 
 function deleteSession(id, e) {
-  e.stopPropagation(); delete sessions[id]; saveSessions();
-  if (activeSessionId === id) {
-    const rem = Object.keys(sessions);
-    if (rem.length) loadSession(rem[rem.length - 1]); else newChat();
+  try {
+    if (!id || !sessions[id]) {
+      logError('deleteSession', `Invalid session id: ${id}`);
+      return;
+    }
+    
+    e?.stopPropagation();
+    delete sessions[id];
+    saveSessions();
+    
+    if (activeSessionId === id) {
+      const rem = Object.keys(sessions);
+      if (rem.length) {
+        loadSession(rem[rem.length - 1]);
+      } else {
+        newChat();
+      }
+    }
+    
+    renderHistoryList();
+    log('deleteSession', `Session ${id} deleted`);
+  } catch(err) {
+    logError('deleteSession', err);
+    toast('❌ Erro ao deletar conversa');
   }
-  renderHistoryList();
 }
 
 function updateSessionTitle(id, firstMsg) {
@@ -1248,14 +1379,27 @@ function appendMessageEl(role, text, timeStr, animate = true, imageDataUrl = nul
 }
 
 function copyText(text, btn) {
-  navigator.clipboard.writeText(text).then(() => {
-    btn.classList.add('copied');
-    btn.innerHTML = `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
-    setTimeout(() => {
-      btn.classList.remove('copied');
-      btn.innerHTML = `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
-    }, 1800);
-  });
+  try {
+    if (!navigator.clipboard) {
+      toast('❌ Clipboard não suportado');
+      return;
+    }
+    
+    navigator.clipboard.writeText(text).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      }, 1800);
+    }).catch(err => {
+      logError('copyText', err);
+      toast('❌ Erro ao copiar');
+    });
+  } catch(err) {
+    logError('copyText', err);
+    toast('❌ Erro ao copiar texto');
+  }
 }
 
 function showTypingIndicator() {
@@ -1294,36 +1438,62 @@ function handleSendBtn() {
 
 async function sendMessage() {
   if (isTyping) return;
-  const input = document.getElementById('user-input');
-  const text  = input.value.trim();
-  if (!text && !pendingImageBase64) return;
+  
+  try {
+    const input = document.getElementById('user-input');
+    const text  = input.value.trim();
+    if (!text && !pendingImageBase64) return;
 
-  input.value = ''; input.style.height = 'auto';
-  const session = getSession(activeSessionId);
-  if (!session) return;
+    input.value = '';
+    input.style.height = 'auto';
+    
+    const session = getSession(activeSessionId);
+    if (!session) {
+      logError('sendMessage', 'Sessão não encontrada');
+      toast('❌ Erro: sessão perdida');
+      return;
+    }
 
-  const ts = Date.now(), time = nowTime();
+    const ts = Date.now(), time = nowTime();
 
-  // Build user message (with optional image)
-  if (pendingImageBase64) {
-    const imgDataUrl = `data:${pendingImageMime};base64,${pendingImageBase64}`;
-    session.messages.push({ role: 'user', content: text || 'O que há nesta imagem?', ts, time, image: imgDataUrl });
-    clearImagePreview();
-  } else {
-    session.messages.push({ role: 'user', content: text, ts, time });
+    // Build user message (with optional image)
+    if (pendingImageBase64) {
+      try {
+        const imgDataUrl = `data:${pendingImageMime};base64,${pendingImageBase64}`;
+        session.messages.push({ role: 'user', content: text || 'O que há nesta imagem?', ts, time, image: imgDataUrl });
+        clearImagePreview();
+      } catch(imgErr) {
+        logError('sendMessage image', imgErr);
+        toast('❌ Erro ao processar imagem');
+        return;
+      }
+    } else {
+      session.messages.push({ role: 'user', content: text, ts, time });
+    }
+
+    if (session.messages.filter(m => m.role === 'user').length === 1) {
+      updateSessionTitle(activeSessionId, text || 'Imagem');
+      renderHistoryList();
+    }
+    
+    saveSessions();
+    appendMessageEl('user', session.messages[session.messages.length-1].content, time, true, session.messages[session.messages.length-1].image);
+    hideRegenBar();
+    
+    log('sendMessage', `Text: ${text.slice(0,50)}...`);
+    await _streamResponse(session);
+  } catch(err) {
+    logError('sendMessage', err);
+    toast('❌ Erro ao enviar mensagem');
   }
-
-  if (session.messages.filter(m => m.role === 'user').length === 1) {
-    updateSessionTitle(activeSessionId, text || 'Imagem');
-    renderHistoryList();
-  }
-  saveSessions();
-  appendMessageEl('user', session.messages[session.messages.length-1].content, time, true, session.messages[session.messages.length-1].image);
-  hideRegenBar();
-  await _streamResponse(session);
 }
 
 async function _streamResponse(session) {
+  if (!session) {
+    logError('_streamResponse', 'Sessão nula');
+    return;
+  }
+  
   isTyping = true;
   setSendMode('stop');
 
@@ -1333,95 +1503,170 @@ async function _streamResponse(session) {
 
   try {
     const key = getApiKey();
+    if (!key) {
+      removeTypingIndicator();
+      show('api-modal');
+      document.getElementById('api-error').style.display = 'block';
+      document.getElementById('api-error').textContent = 'Chave API não configurada';
+      isTyping = false;
+      setSendMode('send');
+      return;
+    }
 
     // Build messages with image support
     const apiMessages = session.messages.slice(-30).map(m => {
-      const role = m.role === 'ai' ? 'assistant' : m.role;
-      if (m.image && role === 'user') {
-        return { role, content: [
-          { type: 'image_url', image_url: { url: m.image } },
-          { type: 'text', text: m.content || 'O que há nesta imagem?' }
-        ]};
+      try {
+        const role = m.role === 'ai' ? 'assistant' : m.role;
+        if (m.image && role === 'user') {
+          return {
+            role, content: [
+              { type: 'image_url', image_url: { url: m.image } },
+              { type: 'text', text: m.content || 'O que há nesta imagem?' }
+            ]
+          };
+        }
+        return { role, content: m.content || '' };
+      } catch(e) {
+        logError('apiMessages mapping', e);
+        return { role: 'user', content: m.content || '' };
       }
-      return { role, content: m.content };
     });
 
     // Use vision model if image present in last msg
     const hasImage = session.messages.slice(-3).some(m => m.image);
     const model = hasImage ? 'meta-llama/llama-4-scout-17b-16e-instruct' : config.model;
+    log('_streamResponse', `Model: ${model}, HasImage: ${hasImage}`);
 
     abortController = new AbortController();
+    const timeout = setTimeout(() => abortController?.abort(), 120000); // 2 min timeout
 
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
       signal: abortController.signal,
       body: JSON.stringify({
-        model, stream: true,
+        model,
+        stream: true,
         messages: [{ role: 'system', content: getSystemPrompt() }, ...apiMessages],
-        temperature: 0.7, max_tokens: 2048,
+        temperature: 0.7,
+        max_tokens: 2048,
       }),
     });
 
+    clearTimeout(timeout);
+
     if (!res.ok) {
       if (res.status === 401) {
-        localStorage.removeItem(SK.apiKey); removeTypingIndicator();
-        show('api-modal'); document.getElementById('api-error').style.display = 'block';
-        document.getElementById('api-error').textContent = 'Chave inválida. Insira novamente.';
-        isTyping = false; setSendMode('send'); return;
+        logError('API Response', 'Unauthorized (401)');
+        try { localStorage.removeItem(SK.apiKey); } catch(e) { logError('removeApiKey', e); }
+        removeTypingIndicator();
+        show('api-modal');
+        document.getElementById('api-error').style.display = 'block';
+        document.getElementById('api-error').textContent = '❌ Chave inválida. Insira novamente.';
+        isTyping = false;
+        setSendMode('send');
+        return;
+      } else if (res.status === 429) {
+        throw new Error('Limite de requisições atingido. Tente novamente em poucos segundos.');
+      } else if (res.status === 500 || res.status === 502 || res.status === 503) {
+        throw new Error('Servidor indisponível. Tente novamente em instantes.');
+      } else {
+        throw new Error(`Erro HTTP ${res.status}: ${res.statusText}`);
       }
-      throw new Error(`Erro HTTP ${res.status}`);
     }
+
+    if (!res.body) throw new Error('Resposta sem corpo');
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     streamingBubble.innerHTML = '<span class="cursor"></span>';
 
+    let buffer = '';
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const lines = decoder.decode(value, { stream: true }).split('\n');
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') continue;
-        try {
-          const delta = JSON.parse(data).choices?.[0]?.delta?.content || '';
-          if (delta) {
-            fullText += delta;
-            streamingBubble.innerHTML = renderMarkdown(fullText) + '<span class="cursor"></span>';
-            document.getElementById('chat-area').scrollTop = document.getElementById('chat-area').scrollHeight;
+      try {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') continue;
+          if (!data) continue;
+          
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullText += delta;
+              try {
+                streamingBubble.innerHTML = renderMarkdown(fullText) + '<span class="cursor"></span>';
+                const chatArea = document.getElementById('chat-area');
+                if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
+              } catch(renderErr) {
+                logError('renderMarkdown', renderErr);
+              }
+            }
+          } catch(parseErr) {
+            // Continue on parse errors
           }
-        } catch(e) {}
+        }
+      } catch(readErr) {
+        logError('reader.read()', readErr);
+        throw readErr;
       }
     }
 
-    streamingBubble.innerHTML = renderMarkdown(fullText);
-    addCopyBtnToFinalBubble(streamingBubble, fullText);
-    session.messages.push({ role: 'assistant', content: fullText, ts: Date.now(), time: aiTime });
-    saveSessions();
-    showRegenBar();
-    updateTokenBadge();
+    // Final render
+    if (fullText) {
+      streamingBubble.innerHTML = renderMarkdown(fullText);
+      addCopyBtnToFinalBubble(streamingBubble, fullText);
+      session.messages.push({ role: 'assistant', content: fullText, ts: Date.now(), time: aiTime });
+      saveSessions();
+      showRegenBar();
+      updateTokenBadge();
+      log('_streamResponse', `Response completed: ${fullText.length} chars`);
+    }
 
   } catch(err) {
+    logError('_streamResponse', err);
+    
     if (err.name === 'AbortError') {
+      log('_streamResponse', 'Request aborted by user');
       if (fullText) {
-        streamingBubble.innerHTML = renderMarkdown(fullText) + ' <span style="color:var(--text-dim);font-size:12px;">[interrompido]</span>';
-        addCopyBtnToFinalBubble(streamingBubble, fullText);
-        session.messages.push({ role: 'assistant', content: fullText, ts: Date.now(), time: aiTime });
-        saveSessions();
-        showRegenBar();
-        updateTokenBadge();
-      } else { removeTypingIndicator(); }
+        try {
+          streamingBubble.innerHTML = renderMarkdown(fullText) + ' <span style="color:var(--text-dim);font-size:12px;">[interrompido]</span>';
+          addCopyBtnToFinalBubble(streamingBubble, fullText);
+          session.messages.push({ role: 'assistant', content: fullText, ts: Date.now(), time: aiTime });
+          saveSessions();
+          showRegenBar();
+          updateTokenBadge();
+        } catch(e) {
+          logError('partial response handling', e);
+          removeTypingIndicator();
+        }
+      } else {
+        removeTypingIndicator();
+      }
     } else {
       removeTypingIndicator();
-      appendMessageEl('ai', `⚠️ Erro: ${err.message}. Verifique sua conexão.`, aiTime);
+      const errorMsg = err.message || 'Erro desconhecido na API';
+      appendMessageEl('ai', `⚠️ ${errorMsg}`, aiTime);
+      toast(`❌ ${errorMsg}`);
     }
+  } finally {
+    isTyping = false;
+    abortController = null;
+    setSendMode('send');
+    const input = document.getElementById('user-input');
+    if (input) input.focus();
   }
-
-  isTyping = false; abortController = null;
-  setSendMode('send');
-  document.getElementById('user-input').focus();
 }
 
 function addCopyBtnToFinalBubble(bubble, text) {
@@ -1487,8 +1732,21 @@ function closeSettings() { hide('settings-overlay'); }
 function openHistory()   { renderHistoryList(); show('history-overlay'); show('history-panel'); }
 function closeHistory()  { hide('history-overlay'); hide('history-panel'); }
 function toast(msg) {
-  const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
-  document.getElementById('app').appendChild(t); setTimeout(()=>t.remove(),2400);
+  try {
+    if (!msg) return;
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = String(msg).slice(0, 200);
+    const app = document.getElementById('app');
+    if (app) {
+      app.appendChild(t);
+      const timeout = setTimeout(() => {
+        try { t.remove(); } catch(e) {}
+      }, 2400);
+    }
+  } catch(err) {
+    console.error('toast error:', err);
+  }
 }
 
 
@@ -1553,28 +1811,62 @@ function initSpeech() {
 }
 
 function toggleVoice() {
-  if (!hasSpeech) { toast('Reconhecimento de voz não suportado neste navegador'); return; }
-  if (!recognition) initSpeech();
-  if (isListening) { recognition.stop(); }
-  else { try { recognition.start(); } catch(e) { stopListening(); } }
+  try {
+    if (!hasSpeech) {
+      toast('Reconhecimento de voz não suportado neste navegador');
+      return;
+    }
+    if (!recognition) initSpeech();
+    if (isListening) {
+      try { recognition.stop(); } catch(e) { logError('recognition.stop()', e); stopListening(); }
+    } else {
+      try {
+        recognition.start();
+      } catch(e) {
+        logError('recognition.start()', e);
+        stopListening();
+      }
+    }
+  } catch(err) {
+    logError('toggleVoice', err);
+    toast('❌ Erro no reconhecimento de voz');
+  }
 }
 
 function stopListening() {
-  isListening = false;
-  const btn = document.getElementById('voice-btn');
-  btn.classList.remove('listening');
-  document.getElementById('voice-icon-mic').classList.remove('hidden');
-  document.getElementById('voice-icon-stop').classList.add('hidden');
-  document.getElementById('input-hint-text').textContent = 'Enter para enviar · Shift+Enter para nova linha';
-  removeVoiceBadge();
+  try {
+    isListening = false;
+    const btn = document.getElementById('voice-btn');
+    if (btn) {
+      btn.classList.remove('listening');
+    }
+    const micIcon = document.getElementById('voice-icon-mic');
+    const stopIcon = document.getElementById('voice-icon-stop');
+    if (micIcon) micIcon.classList.remove('hidden');
+    if (stopIcon) stopIcon.classList.add('hidden');
+    const hintText = document.getElementById('input-hint-text');
+    if (hintText) hintText.textContent = 'Enter para enviar · Shift+Enter para nova linha';
+    removeVoiceBadge();
+  } catch(err) {
+    logError('stopListening', err);
+  }
 }
 
 function showVoiceBadge(text) {
-  removeVoiceBadge();
-  const badge = document.createElement('div');
-  badge.className = 'voice-badge'; badge.id = 'voice-badge'; badge.textContent = text;
-  document.querySelector('.input-area').style.position = 'relative';
-  document.querySelector('.input-area').appendChild(badge);
+  try {
+    removeVoiceBadge();
+    const badge = document.createElement('div');
+    badge.className = 'voice-badge';
+    badge.id = 'voice-badge';
+    badge.textContent = String(text).slice(0, 100);
+    const inputArea = document.querySelector('.input-area');
+    if (inputArea) {
+      inputArea.style.position = 'relative';
+      inputArea.appendChild(badge);
+    }
+  } catch(err) {
+    logError('showVoiceBadge', err);
+  }
 }
 function removeVoiceBadge() { document.getElementById('voice-badge')?.remove(); }
 
@@ -1583,18 +1875,78 @@ let currentUtterance = null;
 let speakingBtn = null;
 
 function speakText(text, btn) {
-  if (!'speechSynthesis' in window) { toast('TTS não suportado neste navegador'); return; }
+  try {
+    if (!('speechSynthesis' in window)) {
+      toast('TTS não suportado neste navegador');
+      return;
+    }
 
-  // Stop if already speaking this message
-  if (currentUtterance && speakingBtn === btn) {
-    window.speechSynthesis.cancel();
-    btn.classList.remove('speaking');
-    currentUtterance = null; speakingBtn = null; return;
+    // Stop if already speaking this message
+    if (currentUtterance && speakingBtn === btn) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch(e) {
+        logError('speechSynthesis.cancel', e);
+      }
+      btn.classList.remove('speaking');
+      currentUtterance = null;
+      speakingBtn = null;
+      return;
+    }
+
+    // Stop previous
+    try {
+      window.speechSynthesis.cancel();
+    } catch(e) {
+      logError('speechSynthesis.cancel prev', e);
+    }
+    if (speakingBtn) speakingBtn.classList.remove('speaking');
+
+    // Strip markdown for clean TTS
+    const clean = (text || '')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\[(.+?)\]\([^)]+\)/g, '$1')
+      .slice(0, 5000);
+
+    if (!clean) {
+      toast('Nada para ler');
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    utterance.onstart = () => {
+      currentUtterance = utterance;
+      speakingBtn = btn;
+      btn.classList.add('speaking');
+    };
+
+    utterance.onend = () => {
+      btn.classList.remove('speaking');
+      currentUtterance = null;
+      speakingBtn = null;
+    };
+
+    utterance.onerror = (e) => {
+      logError('speakText error', e);
+      btn.classList.remove('speaking');
+      currentUtterance = null;
+      speakingBtn = null;
+      toast('❌ Erro ao ler texto');
+    };
+
+    window.speechSynthesis.speak(utterance);
+    log('speakText', `Speaking ${clean.length} chars`);
+  } catch(err) {
+    logError('speakText', err);
+    toast('❌ Erro ao usar TTS');
   }
-
-  // Stop previous
-  window.speechSynthesis.cancel();
-  if (speakingBtn) speakingBtn.classList.remove('speaking');
+}
 
   // Strip markdown for clean TTS
   const clean = text
