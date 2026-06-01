@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -716,6 +717,14 @@ body.light .bubble pre { color: #3a4a5a; }
     </div>
   </div>
 
+  <!-- REGEN BAR -->
+  <div class="regen-bar hidden" id="regen-bar">
+    <button class="regen-btn" onclick="regenerate()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Regenerar resposta
+    </button>
+  </div>
+
   <!-- INPUT -->
   <div class="input-area">
     <div class="input-wrapper">
@@ -877,6 +886,7 @@ const DEFAULT_CONFIG = {
   assistantName: 'Persona',
   avatarInitial: 'P',
   model: 'llama-3.3-70b-versatile',
+  visionModel: 'meta-llama/llama-4-scout-17b-16e-instruct',
   theme: 'dark',
   fontSize: 14.5,
 
@@ -914,7 +924,7 @@ let isTyping = false;
 let abortController = null;
 
 // ── DEBUG LOGGING ────────────────────────────────────
-const DEBUG = true;
+const DEBUG = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 function log(label, data) {
   if (!DEBUG) return;
   console.log(`[${new Date().toLocaleTimeString()}] ${label}:`, data);
@@ -1497,6 +1507,13 @@ async function _streamResponse(session) {
   isTyping = true;
   setSendMode('stop');
 
+  // Garantir que qualquer stream anterior foi abortado antes de iniciar novo
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+    await new Promise(r => setTimeout(r, 0)); // micro-delay para flush de promises pendentes
+  }
+
   const streamingBubble = showTypingIndicator();
   let fullText = '';
   const aiTime = nowTime();
@@ -1534,7 +1551,7 @@ async function _streamResponse(session) {
 
     // Use vision model if image present in last msg
     const hasImage = session.messages.slice(-3).some(m => m.image);
-    const model = hasImage ? 'meta-llama/llama-4-scout-17b-16e-instruct' : config.model;
+    const model = hasImage ? (config.visionModel || DEFAULT_CONFIG.visionModel) : config.model;
     log('_streamResponse', `Model: ${model}, HasImage: ${hasImage}`);
 
     abortController = new AbortController();
@@ -1717,7 +1734,10 @@ function renderMarkdown(text) {
   text = text.replace(/\x00INLINE(\d+)\x00/g, (_, i) => `<code>${escHtml(inlineCodes[i])}</code>`);
   text = text.replace(/\n\n+/g, '</p><p style="margin:6px 0">');
   text = text.replace(/\n/g, '<br>');
-  return `<p style="margin:0">${text}</p>`;
+  const html = `<p style="margin:0">${text}</p>`;
+  return (typeof DOMPurify !== 'undefined')
+    ? DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'style'] })
+    : html;
 }
 
 // ── HELPERS ───────────────────────────────────────────
@@ -1946,34 +1966,6 @@ function speakText(text, btn) {
     logError('speakText', err);
     toast('❌ Erro ao usar TTS');
   }
-}
-
-  // Strip markdown for clean TTS
-  const clean = text
-    .replace(/```[\s\S]*?```/g, 'bloco de código')
-    .replace(/`[^`]+`/g, '')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/^#{1,4} /gm, '')
-    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
-    .trim();
-
-  const utt = new SpeechSynthesisUtterance(clean);
-  utt.lang = 'pt-BR';
-  utt.rate = 1.05;
-  utt.pitch = 1;
-
-  // Try to find a Portuguese voice
-  const voices = window.speechSynthesis.getVoices();
-  const ptVoice = voices.find(v => v.lang.startsWith('pt'));
-  if (ptVoice) utt.voice = ptVoice;
-
-  utt.onend = () => { btn.classList.remove('speaking'); currentUtterance = null; speakingBtn = null; };
-  utt.onerror = () => { btn.classList.remove('speaking'); currentUtterance = null; speakingBtn = null; };
-
-  btn.classList.add('speaking');
-  currentUtterance = utt; speakingBtn = btn;
-  window.speechSynthesis.speak(utt);
 }
 
 
