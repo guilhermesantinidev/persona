@@ -218,6 +218,37 @@ body{
   box-shadow:0 2px 12px rgba(99,102,241,0.1);
 }
 
+/* edit button on user messages */
+.edit-btn{
+  position:absolute;top:8px;left:8px;
+  width:24px;height:24px;border-radius:6px;
+  background:var(--surface2);border:0.5px solid var(--border2);
+  color:var(--text-dim);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .15s,color .15s;
+}
+.message.user:hover .edit-btn{opacity:1}
+.edit-btn:hover{color:var(--neon);border-color:var(--border3)}
+.edit-input-wrap{display:flex;flex-direction:column;gap:6px;width:100%}
+.edit-textarea{
+  width:100%;background:var(--surface2);border:.5px solid var(--border3);
+  border-radius:9px;padding:9px 12px;color:var(--text);
+  font-family:'DM Sans',sans-serif;font-size:var(--font-size);font-weight:300;
+  outline:none;resize:none;line-height:1.55;min-height:60px;
+  box-shadow:0 0 0 2px var(--neon-glow2);
+}
+.edit-actions{display:flex;gap:6px;justify-content:flex-end}
+.edit-save{
+  padding:5px 12px;border-radius:7px;border:none;
+  background:linear-gradient(135deg,#0ea5e9,#6366f1);
+  color:#fff;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;
+}
+.edit-cancel{
+  padding:5px 12px;border-radius:7px;
+  border:.5px solid var(--border2);background:transparent;
+  color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;
+}
+
 /* copy / tts buttons */
 .copy-btn{
   position:absolute;top:8px;right:8px;
@@ -330,16 +361,13 @@ body.light .bubble pre{color:#0369a1}
 }
 .qp-btn:hover{background:var(--neon-dim);border-color:var(--border3);color:var(--neon)}
 
-/* ── REGEN BAR ── */
-.regen-bar{display:flex;justify-content:center;padding:2px 0 5px}
-.regen-btn{
-  display:flex;align-items:center;gap:6px;
-  padding:6px 14px;border-radius:20px;
-  border:.5px solid var(--border2);background:var(--surface);
-  color:var(--text-muted);font-family:'DM Sans',sans-serif;
-  font-size:12px;cursor:pointer;transition:all .15s;
+/* ── MODE TAG ── */
+.mode-tag{
+  display:inline-block;padding:1px 7px;border-radius:10px;
+  font-size:10px;font-weight:500;letter-spacing:.04em;
+  background:var(--neon-dim);border:.5px solid var(--border2);
+  color:var(--neon);margin-bottom:5px;
 }
-.regen-btn:hover{background:var(--neon-dim);border-color:var(--border3);color:var(--neon)}
 
 /* ── MODE BAR ── */
 .mode-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;overflow-x:auto;padding-bottom:2px}
@@ -910,16 +938,6 @@ body.light .bubble pre{color:#0369a1}
   <div class="splash-sub">Seu assistente com IA</div>
 </div>
 
-  <!-- SPLASH SCREEN -->
-  <div class="splash" id="splash">
-    <div class="splash-logo">P</div>
-    <div class="splash-subtitle">Persona AI Assistant</div>
-    <div class="splash-dots">
-      <div class="splash-dot"></div>
-      <div class="splash-dot"></div>
-      <div class="splash-dot"></div>
-    </div>
-  </div>
 
 <div id="app">
 
@@ -965,12 +983,6 @@ body.light .bubble pre{color:#0369a1}
   <!-- INPUT -->
   <div class="input-area">
     <div id="img-preview-area" class="img-preview-area" style="display:none"></div>
-    <div class="regen-bar hidden" id="regen-bar">
-      <button class="regen-btn" onclick="regenerate()">
-        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
-        Tentar novamente
-      </button>
-    </div>
     <div class="mode-bar">
       <span class="mode-label">Modo:</span>
       <div class="mode-pills">
@@ -1022,13 +1034,53 @@ body.light .bubble pre{color:#0369a1}
       <div class="onb-page" id="onb-page-1">
         <div class="onb-icon">🔑</div>
         <h2>Chave da Groq</h2>
-        <p>O Persona usa a API da Groq para respostas ultrarrápidas. A chave fica salva apenas no seu dispositivo.</p>
+        <p>O Persona usa a API gratuita da Groq. Você precisa de uma chave pessoal — é grátis e leva menos de 1 minuto.</p>
+
+        <div class="key-steps">
+          <div class="key-step">
+            <div class="key-step-num">1</div>
+            <div class="key-step-body">
+              <div class="key-step-title">Gere sua chave gratuita</div>
+              <div class="key-step-desc">Clique abaixo para abrir a Groq. Crie uma conta (pode ser com Google) e clique em "Create API Key".</div>
+              <button class="key-open-btn" id="key-open-btn" onclick="openGroqAndWatch()">
+                <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Gerar minha chave grátis →
+              </button>
+            </div>
+          </div>
+          <div class="key-step">
+            <div class="key-step-num">2</div>
+            <div class="key-step-body">
+              <div class="key-step-title">Copie a chave gerada</div>
+              <div class="key-step-desc">Na Groq, copie a chave que começa com <code style="background:var(--surface2);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--neon)">gsk_</code> e volte aqui.</div>
+            </div>
+          </div>
+          <div class="key-step">
+            <div class="key-step-num">3</div>
+            <div class="key-step-body">
+              <div class="key-step-title">Cole aqui</div>
+              <div class="key-step-desc">Ao voltar, detectamos automaticamente — ou cole manualmente abaixo.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="key-detect-box hidden" id="key-detect-box">
+          <div class="key-detect-icon">✓</div>
+          <div class="key-detect-text">
+            <strong>Chave detectada!</strong><br>
+            <span id="key-detect-preview" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace"></span>
+          </div>
+          <button class="key-detect-use" onclick="useDetectedKey()">Usar esta</button>
+          <button class="key-detect-dismiss" onclick="dismissDetectedKey()">✕</button>
+        </div>
+
         <p class="error-msg" id="api-error">Chave inválida. Deve começar com "gsk_".</p>
         <input type="password" class="onb-input" id="api-key-input"
-               placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx"
+               placeholder="Cole aqui: gsk_xxxxxxxxxxxxxxxx"
+               oninput="onKeyInput(this)"
                onkeydown="if(event.key==='Enter')onbNext()">
         <button class="modal-btn" onclick="onbNext()">Continuar →</button>
-        <p class="modal-link">Não tem uma? <a href="https://console.groq.com/keys" target="_blank">Obtenha grátis →</a></p>
+        <p style="font-size:11px;color:var(--text-dim);margin-top:10px;line-height:1.6;">⚠️ A chave fica salva apenas no seu dispositivo. Não compartilhe com outras pessoas.</p>
       </div>
       <!-- Page 2: Personalize -->
       <div class="onb-page" id="onb-page-2">
@@ -1087,9 +1139,9 @@ body.light .bubble pre{color:#0369a1}
         </select>
       </div>
       <div class="section-label">Prompts de Sistema</div>
-      <div class="field"><label>Personalidade do Assistente</label><textarea id="s-persona" rows="4" placeholder="Como o assistente deve se comportar…"></textarea></div>
-      <div class="field"><label>Informações sobre Você</label><textarea id="s-user-info" rows="3" placeholder="Nome, profissão, preferências…"></textarea></div>
-      <div class="field"><label>Instruções Extras</label><textarea id="s-extra" rows="2" placeholder="Ex: Sempre em português. Seja conciso."></textarea></div>
+      <div class="field"><label>Personalidade do Assistente <span style="color:var(--text-dim);font-weight:300">— define o comportamento, tom e estilo de resposta</span></label><textarea id="s-persona" rows="4" placeholder="Ex: Você é direto e técnico. Prefiro respostas curtas. Não use emojis."></textarea></div>
+      <div class="field"><label>Informações sobre Você <span style="color:var(--text-dim);font-weight:300">— contexto pessoal que o assistente sempre considera</span></label><textarea id="s-user-info" rows="3" placeholder="Ex: Sou dev full-stack, trabalho com React e Node. Prefiro respostas em PT-BR."></textarea></div>
+      <div class="field"><label>Instruções Extras <span style="color:var(--text-dim);font-weight:300">— regras adicionais sempre aplicadas</span></label><textarea id="s-extra" rows="2" placeholder="Ex: Sempre em português. Cite fontes quando possível."></textarea></div>
       <div class="section-label">Conta</div>
       <button class="btn-primary" onclick="saveSettings()">Salvar configurações</button>
       <button class="btn-danger" onclick="resetApiKey()">Trocar chave de API</button>
@@ -1126,7 +1178,7 @@ body.light .bubble pre{color:#0369a1}
         <h2>Memória</h2>
         <button class="icon-btn" onclick="closeMemory()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      <p class="memory-desc">Anotações que o Persona sempre lê antes de responder. Use para preferências, contexto do projeto ou qualquer coisa permanente.</p>
+      <p class="memory-desc">Anotações que o Persona <strong style="color:var(--text)">sempre lê antes de responder</strong> — em todo chat, para sempre. Use para guardar suas preferências, contexto de projetos, coisas que ele deve lembrar ou evitar. Quanto mais detalhado, melhor ele te conhece.</p>
       <textarea id="memory-text" style="width:100%;background:var(--surface2);border:.5px solid var(--border2);border-radius:9px;padding:12px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:300;outline:none;resize:vertical;min-height:140px;line-height:1.6;transition:border-color .15s,box-shadow .15s" placeholder="Ex: Prefiro respostas diretas. Meu projeto atual é um app em React. Não usar muitos emojis…" onfocus="this.style.borderColor='var(--border3)';this.style.boxShadow='0 0 0 2px var(--neon-glow2)'" onblur="this.style.borderColor='';this.style.boxShadow=''"></textarea>
       <div class="memory-actions">
         <button class="memory-save" onclick="saveMemory()">Salvar memória</button>
@@ -1418,16 +1470,35 @@ function getModeInstruction() { return MODE_INSTRUCTIONS[activeMode]||''; }
 
 // ── SESSIONS ─────────────────────────────────────
 function loadSessions() { try { const r=localStorage.getItem(SK.sessions); if(r) sessions=JSON.parse(r); } catch(e){ sessions={}; } }
-function saveSessions() { try { localStorage.setItem(SK.sessions,JSON.stringify(sessions)); } catch(e){} }
+function saveSessions() {
+  try {
+    localStorage.setItem(SK.sessions,JSON.stringify(sessions));
+  } catch(e) {
+    if(e.name==='QuotaExceededError'||e.code===22) {
+      // localStorage cheio: remove sessões mais antigas e tenta novamente
+      const ids=Object.keys(sessions).sort((a,b)=>(sessions[a].createdAt||0)-(sessions[b].createdAt||0));
+      if(ids.length>5){ ids.slice(0,Math.floor(ids.length/2)).forEach(id=>delete sessions[id]); }
+      try { localStorage.setItem(SK.sessions,JSON.stringify(sessions)); } catch(e2) {}
+      toast('Armazenamento quase cheio — conversas antigas foram removidas automaticamente.');
+    }
+  }
+}
 function getSession(id) { return sessions[id]; }
-function createSession() { const id='sess_'+Date.now(); sessions[id]={id,title:'Nova conversa',createdAt:Date.now(),messages:[]}; saveSessions(); return id; }
+function createSession() {
+  const id='sess_'+Date.now();
+  sessions[id]={id,title:'Nova conversa',createdAt:Date.now(),messages:[]};
+  // Limite de 50 sessões — remove as mais antigas
+  const ids=Object.keys(sessions).sort((a,b)=>(sessions[a].createdAt||0)-(sessions[b].createdAt||0));
+  if(ids.length>50){ ids.slice(0,ids.length-50).forEach(old=>delete sessions[old]); }
+  saveSessions(); return id;
+}
 function setActiveSession(id) { activeSessionId=id; localStorage.setItem(SK.activeSession,id); }
 function restoreOrNewSession() { const lid=localStorage.getItem(SK.activeSession); if(lid&&sessions[lid]) loadSession(lid); else newChat(); }
 
 function loadSession(id) {
   if(!sessions[id]) return;
   setActiveSession(id); renderChat(sessions[id].messages);
-  hideRegenBar(); updateTokenBadge();
+  updateTokenBadge();
 }
 
 function renderChat(msgs) {
@@ -1437,7 +1508,7 @@ function renderChat(msgs) {
   msgs.forEach(m=>{
     const d=new Date(m.ts).toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
     if(d!==lastDate){ lastDate=d; const sep=document.createElement('div'); sep.className='date-sep'; sep.textContent=d; area.appendChild(sep); }
-    appendMessageEl(m.role==='assistant'?'ai':'user',m.content,m.time,false,m.image||null);
+    appendMessageEl(m.role==='assistant'?'ai':'user',m.content,m.time,false,m.image||null,m.mode||'');
   });
   area.scrollTop=area.scrollHeight;
 }
@@ -1452,7 +1523,7 @@ function newChat() {
   if(abortController){abortController.abort();isTyping=false;}
   const id=createSession(); setActiveSession(id);
   const area=document.getElementById('chat-area'); area.innerHTML=''; area.appendChild(makeEmptyState());
-  renderQuickPrompts(); renderHistoryList(); setSendMode('send'); hideRegenBar();
+  renderQuickPrompts(); renderHistoryList(); setSendMode('send');
   document.getElementById('user-input').focus();
 }
 
@@ -1505,8 +1576,15 @@ function appendMessageEl(role, text, timeStr, animate=true, imageDataUrl=null) {
   const bubble=document.createElement('div'); bubble.className='bubble';
 
   if(imageDataUrl){ const img=document.createElement('img'); img.src=imageDataUrl; img.className='msg-image'; bubble.appendChild(img); }
+  // Mode tag para mensagens da IA
+  if(!isUser && arguments[5]) { const tag=document.createElement('div'); tag.className='mode-tag'; const labels={resumido:'Resumido',detalhado:'Detalhado',topicos:'Tópicos',tecnico:'Técnico'}; tag.textContent=labels[arguments[5]]||arguments[5]; bubble.insertBefore(tag,bubble.firstChild); }
   const textNode=document.createElement('div'); textNode.innerHTML=renderMarkdown(text); bubble.appendChild(textNode);
 
+  if(isUser) {
+    const editBtn=document.createElement('button'); editBtn.className='edit-btn'; editBtn.title='Editar';
+    editBtn.innerHTML='<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+    editBtn.onclick=()=>startEditMessage(div,text,timeStr); bubble.appendChild(editBtn);
+  }
   if(!isUser) {
     const copyBtn=document.createElement('button'); copyBtn.className='copy-btn'; copyBtn.title='Copiar';
     copyBtn.innerHTML=`<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
@@ -1567,22 +1645,6 @@ function showTypingIndicator() {
 
 function removeTypingIndicator() { const el=document.getElementById('typing-msg'); if(el) el.remove(); }
 
-// ── REGEN ────────────────────────────────────────
-function showRegenBar() { document.getElementById('regen-bar').classList.remove('hidden'); }
-function hideRegenBar() { document.getElementById('regen-bar').classList.add('hidden'); }
-
-async function regenerate() {
-  const session=getSession(activeSessionId);
-  if(!session||session.messages.length<2) return;
-  const lastMsg=session.messages[session.messages.length-1];
-  if(lastMsg.role!=='assistant') return;
-  session.messages.pop(); saveSessions(); hideRegenBar();
-  const area=document.getElementById('chat-area');
-  const msgs=area.querySelectorAll('.message');
-  for(let i=msgs.length-1;i>=0;i--){ if(msgs[i].classList.contains('ai')){msgs[i].remove();break;} }
-  await _streamResponse(session);
-}
-
 // ── SEND / STOP ──────────────────────────────────
 function setSendMode(mode) {
   const btn=document.getElementById('send-btn');
@@ -1614,7 +1676,6 @@ async function sendMessage() {
   saveSessions();
   const lastMsg=session.messages[session.messages.length-1];
   appendMessageEl('user',lastMsg.content,time,true,lastMsg.image||null);
-  hideRegenBar();
   userScrolledUp=false;
   await _streamResponse(session);
 }
@@ -1663,18 +1724,104 @@ async function _streamResponse(session) {
 
     streamingBubble.innerHTML=renderMarkdown(fullText);
     addCopyBtnToFinalBubble(streamingBubble,fullText);
-    session.messages.push({role:'assistant',content:fullText,ts:Date.now(),time:aiTime});
-    saveSessions(); showRegenBar(); updateTokenBadge();
+    session.messages.push({role:'assistant',content:fullText,ts:Date.now(),time:aiTime,mode:activeMode==='normal'?'':activeMode});
+    saveSessions(); updateTokenBadge();
 
   } catch(err) {
     if(err.name==='AbortError') {
-      if(fullText){ streamingBubble.innerHTML=renderMarkdown(fullText)+' <span style="color:var(--text-dim);font-size:11px">[interrompido]</span>'; addCopyBtnToFinalBubble(streamingBubble,fullText); session.messages.push({role:'assistant',content:fullText,ts:Date.now(),time:aiTime}); saveSessions(); showRegenBar(); updateTokenBadge(); }
+      if(fullText){ streamingBubble.innerHTML=renderMarkdown(fullText)+' <span style="color:var(--text-dim);font-size:11px">[interrompido]</span>'; addCopyBtnToFinalBubble(streamingBubble,fullText); session.messages.push({role:'assistant',content:fullText,ts:Date.now(),time:aiTime,mode:activeMode==='normal'?'':activeMode}); saveSessions(); updateTokenBadge(); }
       else removeTypingIndicator();
-    } else { removeTypingIndicator(); appendMessageEl('ai',`⚠️ Erro: ${err.message}`,aiTime); }
+    } else { removeTypingIndicator(); showErrorMessage(err.message, aiTime); }
   }
 
   isTyping=false; abortController=null; setSendMode('send');
   document.getElementById('user-input').focus();
+}
+
+// ── EDIT MESSAGE ────────────────────────────────────
+function startEditMessage(msgDiv, originalText, timeStr) {
+  const bubble = msgDiv.querySelector('.bubble');
+  const content = msgDiv.querySelector('.msg-content');
+  // Salvar conteúdo original para cancelar
+  bubble.dataset.original = originalText;
+
+  const wrap = document.createElement('div'); wrap.className='edit-input-wrap';
+  const ta = document.createElement('textarea'); ta.className='edit-textarea'; ta.value=originalText;
+  setTimeout(()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);},10);
+  ta.oninput=()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,200)+'px';};
+
+  const actions = document.createElement('div'); actions.className='edit-actions';
+  const saveBtn = document.createElement('button'); saveBtn.className='edit-save'; saveBtn.textContent='Salvar e reenviar';
+  const cancelBtn = document.createElement('button'); cancelBtn.className='edit-cancel'; cancelBtn.textContent='Cancelar';
+
+  cancelBtn.onclick=()=>{
+    bubble.innerHTML='';
+    if(msgDiv.querySelector('img.msg-image')){ const img=document.createElement('img'); img.src=msgDiv.querySelector('img.msg-image')?.src||''; img.className='msg-image'; bubble.appendChild(img); }
+    const textNode=document.createElement('div'); textNode.innerHTML=renderMarkdown(originalText); bubble.appendChild(textNode);
+    const editBtn=document.createElement('button'); editBtn.className='edit-btn'; editBtn.title='Editar';
+    editBtn.innerHTML='<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+    editBtn.onclick=()=>startEditMessage(msgDiv,originalText,timeStr); bubble.appendChild(editBtn);
+  };
+
+  saveBtn.onclick=async()=>{
+    const newText=ta.value.trim(); if(!newText) return;
+    // Atualizar visualmente
+    bubble.innerHTML='';
+    const textNode=document.createElement('div'); textNode.innerHTML=renderMarkdown(newText); bubble.appendChild(textNode);
+    const editBtn2=document.createElement('button'); editBtn2.className='edit-btn'; editBtn2.title='Editar';
+    editBtn2.innerHTML='<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+    editBtn2.onclick=()=>startEditMessage(msgDiv,newText,timeStr); bubble.appendChild(editBtn2);
+    // Encontrar índice desta mensagem no histórico e truncar a partir daqui
+    const session=getSession(activeSessionId); if(!session) return;
+    const area=document.getElementById('chat-area');
+    const allMsgs=Array.from(area.querySelectorAll('.message'));
+    const msgIndex=allMsgs.indexOf(msgDiv);
+    // Remover mensagens seguintes do DOM
+    for(let i=allMsgs.length-1;i>msgIndex;i--) allMsgs[i].remove();
+    // Truncar sessão: encontrar índice no array de mensagens
+    const userMsgs=session.messages.filter(m=>m.role==='user');
+    // Contar quantas mensagens user aparecem antes desta (pelo DOM)
+    let userCount=0;
+    for(let i=0;i<msgIndex;i++){ if(allMsgs[i].classList.contains('user')) userCount++; }
+    // Pegar o índice da mensagem no array
+    let uIdx=-1,cnt=0;
+    for(let i=0;i<session.messages.length;i++){
+      if(session.messages[i].role==='user'){ if(cnt===userCount){uIdx=i;break;} cnt++; }
+    }
+    if(uIdx>=0){
+      session.messages=session.messages.slice(0,uIdx);
+      session.messages.push({role:'user',content:newText,ts:Date.now(),time:nowTime()});
+      saveSessions();
+      await _streamResponse(session);
+    }
+  };
+
+  actions.appendChild(cancelBtn); actions.appendChild(saveBtn);
+  wrap.appendChild(ta); wrap.appendChild(actions);
+  bubble.innerHTML=''; bubble.appendChild(wrap);
+}
+
+// ── ERROR MESSAGE ───────────────────────────────────
+function showErrorMessage(msg, timeStr) {
+  const es=document.getElementById('empty-state'); if(es) es.remove();
+  const area=document.getElementById('chat-area');
+  const div=document.createElement('div'); div.className='message ai';
+  const av=document.createElement('div'); av.className='msg-avatar'; av.textContent=config.avatarInitial||'P';
+  const content=document.createElement('div'); content.className='msg-content';
+  const bubble=document.createElement('div');
+  bubble.style.cssText='padding:11px 14px;border-radius:var(--radius);border:.5px solid rgba(248,113,113,.25);background:rgba(248,113,113,.05);color:#f87171;font-size:13px;font-weight:300;word-break:break-word;border-radius:4px 14px 14px 14px;';
+  // Mensagem amigável por tipo de erro
+  let friendly=msg;
+  if(msg.includes('429')) friendly='⚠️ Limite de requisições atingido. Aguarde alguns segundos e tente novamente.';
+  else if(msg.includes('500')||msg.includes('502')||msg.includes('503')) friendly='⚠️ Servidor da Groq indisponível no momento. Tente novamente em breve.';
+  else if(msg.includes('Failed to fetch')||msg.includes('NetworkError')) friendly='⚠️ Sem conexão com a internet. Verifique sua rede e tente novamente.';
+  else friendly=`⚠️ Erro: ${msg}`;
+  bubble.textContent=friendly;
+  const time=document.createElement('div'); time.className='msg-time'; time.textContent=timeStr||nowTime();
+  content.appendChild(bubble); content.appendChild(time);
+  div.appendChild(av); div.appendChild(content);
+  area.appendChild(div);
+  if(!userScrolledUp) area.scrollTop=area.scrollHeight;
 }
 
 // ── IMAGE ────────────────────────────────────────
@@ -1842,105 +1989,172 @@ function closeSettings(){hide('settings-overlay');}
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.getElementById('app').appendChild(t);setTimeout(()=>t.remove(),2400);}
 
 
-// ── SPLASH SCREEN ────────────────────────────────────
-function hideSplash() { document.getElementById('splash').remove(); }
-setTimeout(hideSplash, 2800); // desaparece após 2.8s
 
-// ── ONBOARDING ───────────────────────────────────────
-const SK_ONBOARDED = 'persona_onboarded';
+// ── INSTALL BANNER ───────────────────────────────────────
+let _deferredInstallPrompt = null;
+const SK_INSTALL_DISMISSED = 'persona_install_dismissed';
 
-function isFirstTime() { return !localStorage.getItem(SK_ONBOARDED); }
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+  // Só mostra se não foi dispensado antes e não está no onboarding
+  const dismissed = localStorage.getItem(SK_INSTALL_DISMISSED);
+  if (!dismissed && !document.getElementById('onb-modal')?.style.display !== 'none') {
+    setTimeout(() => showInstallBanner(), 3000); // 3s após primeira resposta da IA
+  }
+});
 
-function showOnboarding() {
-  if (!isFirstTime()) return;
-  show('onboarding');
+window.addEventListener('appinstalled', () => {
+  hideInstallBanner();
+  toast('✓ Persona instalado! Procure o ícone na sua tela inicial.');
+});
+
+function showInstallBanner() {
+  const banner = document.getElementById('install-banner');
+  if (!banner || localStorage.getItem(SK_INSTALL_DISMISSED)) return;
+  // Não mostrar durante onboarding
+  const onb = document.getElementById('onb-modal');
+  if (onb && !onb.classList.contains('hidden') && onb.style.display !== 'none') return;
+  banner.classList.add('visible');
 }
 
-function goToOnbStep(step) {
-  // Hide all steps
-  document.querySelectorAll('.onb-step').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.onb-dot').forEach(d => d.classList.remove('active'));
+function hideInstallBanner() {
+  document.getElementById('install-banner')?.classList.remove('visible');
+}
 
-  // Show selected step
-  const stepEl = document.getElementById(`onb-step-${step}`);
-  const dotEl = document.getElementById(`onb-dot-${step}`);
-  if (stepEl) stepEl.classList.add('active');
-  if (dotEl) dotEl.classList.add('active');
+function dismissInstallBanner() {
+  hideInstallBanner();
+  localStorage.setItem(SK_INSTALL_DISMISSED, '1');
+}
 
-  // Scroll to form input if step 2
-  if (step === 2) {
-    setTimeout(() => document.getElementById('onb-name').focus(), 100);
+async function triggerInstall() {
+  if (!_deferredInstallPrompt) return;
+  hideInstallBanner();
+  _deferredInstallPrompt.prompt();
+  const { outcome } = await _deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') toast('✓ Instalando o Persona…');
+  _deferredInstallPrompt = null;
+}
+
+// iOS: detectar Safari sem standalone
+function isIosSafari() {
+  const ua = navigator.userAgent;
+  const isIos = /iphone|ipad|ipod/i.test(ua);
+  const isSafari = /safari/i.test(ua) && !/chrome|crios|fxios/i.test(ua);
+  const isStandalone = window.navigator.standalone;
+  return isIos && isSafari && !isStandalone;
+}
+
+function dismissIosBanner() {
+  document.getElementById('ios-banner')?.classList.remove('visible');
+  localStorage.setItem(SK_INSTALL_DISMISSED, '1');
+}
+
+// Mostrar banner iOS após primeira resposta da IA
+function maybeShowInstallBanner() {
+  if (localStorage.getItem(SK_INSTALL_DISMISSED)) return;
+  if (isIosSafari()) {
+    setTimeout(() => {
+      document.getElementById('ios-banner')?.classList.add('visible');
+    }, 4000);
+  }
+  // Chrome/Edge: controlado pelo evento beforeinstallprompt
+}
+
+// ── GROQ KEY DETECT ──────────────────────────────────────
+let _watchingForKey = false;
+let _detectedKey = null;
+
+function openGroqAndWatch() {
+  window.open('https://console.groq.com/keys', '_blank');
+  _watchingForKey = true;
+  // Detectar quando usuário volta para a aba
+  window.addEventListener('focus', _onWindowFocus);
+  // Atualizar botão para dar feedback
+  const btn = document.getElementById('key-open-btn');
+  if (btn) {
+    btn.textContent = '⏳ Aguardando você voltar…';
+    btn.style.opacity = '0.7';
+    btn.style.cursor = 'default';
   }
 }
 
-function skipOnboarding() { finishOnboarding(); }
-
-function finishOnboarding() {
-  const name = document.getElementById('onb-name').value.trim();
-  if (name) {
-    config.assistantName = name;
-    config.avatarInitial = name[0].toUpperCase();
-    localStorage.setItem(SK.config, JSON.stringify(config));
-    applyConfig();
-  }
-  localStorage.setItem(SK_ONBOARDED, 'true');
-  hide('onboarding');
-}
-
-// ── DRAG & DROP DE IMAGENS ───────────────────────────
-function setupDragDrop() {
-  const area = document.getElementById('chat-area');
-  if (!area) return;
-
-  area.addEventListener('dragover', e => {
-    e.preventDefault();
-    area.style.background = 'rgba(0,217,255,0.08)';
-    area.style.borderRadius = '16px';
-  });
-
-  area.addEventListener('dragleave', e => {
-    if (e.target === area) {
-      area.style.background = '';
+async function _onWindowFocus() {
+  if (!_watchingForKey) return;
+  // Tentar ler clipboard
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text && text.trim().startsWith('gsk_') && text.trim().length > 20) {
+      _detectedKey = text.trim();
+      showKeyDetected(_detectedKey);
+      window.removeEventListener('focus', _onWindowFocus);
+      _watchingForKey = false;
+      // Restaurar botão
+      const btn = document.getElementById('key-open-btn');
+      if (btn) { btn.innerHTML = '✓ Groq aberta'; btn.style.opacity='0.5'; }
     }
-  });
-
-  area.addEventListener('drop', e => {
-    e.preventDefault();
-    area.style.background = '';
-
-    const files = e.dataTransfer.files;
-    for (let file of files) {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const dataUrl = ev.target.result;
-          pendingImageBase64 = dataUrl.split(',')[1];
-          pendingImageMime = file.type;
-          const previewArea = document.getElementById('img-preview-area');
-          previewArea.style.display = 'block';
-          previewArea.innerHTML = `
-            <div class="img-preview-wrap">
-              <img src="${dataUrl}" class="img-preview">
-              <button class="img-remove" onclick="clearImagePreview()">✕</button>
-            </div>`;
-          toast('Imagem pronta! Escreva uma mensagem e envie.');
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-  });
+  } catch(e) {
+    // Clipboard negado — silencioso, usuário pode colar manualmente
+  }
 }
 
+function showKeyDetected(key) {
+  const box = document.getElementById('key-detect-box');
+  const preview = document.getElementById('key-detect-preview');
+  if (!box || !preview) return;
+  const masked = key.slice(0, 8) + '••••••••' + key.slice(-4);
+  preview.textContent = masked;
+  box.classList.remove('hidden');
+}
 
-// Setup sequence
-setTimeout(() => {
-  setupDragDrop();
-  const hasKey = getApiKey();
-  if (hasKey && isFirstTime()) {
-    show('onboarding');
+function useDetectedKey() {
+  if (!_detectedKey) return;
+  const input = document.getElementById('api-key-input');
+  if (input) input.value = _detectedKey;
+  document.getElementById('key-detect-box')?.classList.add('hidden');
+  document.getElementById('api-error')?.classList.remove('visible');
+  // Avançar automaticamente
+  setTimeout(() => onbNext(), 300);
+}
+
+function dismissDetectedKey() {
+  document.getElementById('key-detect-box')?.classList.add('hidden');
+  _detectedKey = null;
+}
+
+function onKeyInput(input) {
+  const val = input.value.trim();
+  if (val.startsWith('gsk_') && val.length > 20) {
+    document.getElementById('api-error')?.classList.remove('visible');
   }
-  init();
-}, 50);
+}
+
+// ── INIT ─────────────────────────────────────────────
+init();
 </script>
+
+  <!-- INSTALL BANNER (Chrome/Edge/Android) -->
+  <div id="install-banner">
+    <div class="install-banner-icon">P</div>
+    <div class="install-banner-body">
+      <div class="install-banner-title">Instalar o Persona</div>
+      <div class="install-banner-sub">Adicione à tela inicial para acesso rápido, sem abrir o navegador.</div>
+    </div>
+    <div class="install-banner-actions">
+      <button class="install-btn install-btn-primary" onclick="triggerInstall()">Instalar</button>
+      <button class="install-btn install-btn-dismiss" onclick="dismissInstallBanner()">Agora não</button>
+    </div>
+  </div>
+
+  <!-- INSTALL BANNER iOS (Safari) -->
+  <div id="ios-banner">
+    <div class="ios-banner-title">📲 Instale o Persona no seu iPhone</div>
+    <div class="ios-banner-steps">
+      Toque em <strong style="color:var(--text)">Compartilhar</strong> <span style="font-size:14px">⎋</span> na barra do Safari<br>
+      depois em <strong style="color:var(--text)">"Adicionar à Tela de Início"</strong>
+    </div>
+    <button class="ios-banner-close" onclick="dismissIosBanner()">Entendi</button>
+  </div>
+
 </body>
 </html>
